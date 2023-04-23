@@ -39,13 +39,14 @@ const GAP_BETWEEN_BRICKS_AND_SIDES: f32 = 20.0;
 const SCOREBOARD_FONT_SIZE: f32 = 40.0;
 const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
 
-const BACKGROUND_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
-const PADDLE_COLOR: Color = Color::rgb(0.3, 0.3, 0.7);
+const BACKGROUND_COLOR: Color = Color::rgb(0.4, 0.4, 0.4);
 const BALL_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
 const BRICK_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 const WALL_COLOR: Color = Color::rgb(0.8, 0.8, 0.8);
 const TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
-const SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
+// const SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
+const X_COLOR: Color = Color::rgb(0.0, 0.5, 0.4);
+const Y_COLOR: Color = Color::rgb(0.0, 0.8, 0.8);
 
 fn main() {
     App::new()
@@ -190,20 +191,34 @@ fn setup(
 
     commands.spawn((
         SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(0.0, paddle_y, 0.0),
-                scale: PADDLE_SIZE,
-                ..default()
-            },
-            sprite: Sprite {
-                color: PADDLE_COLOR,
-                ..default()
-            },
+            texture: asset_server.load("branding/icon.png"),
+            transform: Transform::from_xyz(100., 0., 0.),
             ..default()
         },
         Paddle,
         Collider,
     ));
+
+    const UNHOOK_SIZE: Vec3 = Vec3::new(0.1, 0.1, 0.0);
+    const UNHOOK_POSITION: Vec3 = Vec3::new(0.0, -429.0, 1.0);
+    commands.spawn((
+        SpriteBundle {
+            texture: asset_server.load("branding/unhook.png"),
+            transform: Transform::from_translation(UNHOOK_POSITION).with_scale(UNHOOK_SIZE),
+            ..default()
+        },
+    ));
+
+    // commands.spawn((
+    //     SpriteBundle {
+    //         
+    //         transform: Transform::from_xyz(100., 0., 0.),
+    //         ..default()
+    //     },
+    //     Direction::Up,
+    // ));
+
+
 
     // Ball
     commands.spawn((
@@ -221,7 +236,7 @@ fn setup(
     commands.spawn(
         TextBundle::from_sections([
             TextSection::new(
-                "Score: ",
+                "Coords: ",
                 TextStyle {
                     font_size: SCOREBOARD_FONT_SIZE,
                     color: TEXT_COLOR,
@@ -230,7 +245,12 @@ fn setup(
             ),
             TextSection::from_style(TextStyle {
                 font_size: SCOREBOARD_FONT_SIZE,
-                color: SCORE_COLOR,
+                color: X_COLOR,
+                ..default()
+            }),
+            TextSection::from_style(TextStyle {
+                font_size: SCOREBOARD_FONT_SIZE,
+                color: Y_COLOR,
                 ..default()
             }),
         ])
@@ -243,10 +263,10 @@ fn setup(
     );
 
     // Walls
-    commands.spawn(WallBundle::new(WallLocation::Left));
-    commands.spawn(WallBundle::new(WallLocation::Right));
-    commands.spawn(WallBundle::new(WallLocation::Bottom));
-    commands.spawn(WallBundle::new(WallLocation::Top));
+    // commands.spawn(WallBundle::new(WallLocation::Left));
+    // commands.spawn(WallBundle::new(WallLocation::Right));
+    // commands.spawn(WallBundle::new(WallLocation::Bottom));
+    // commands.spawn(WallBundle::new(WallLocation::Top));
 
     // Bricks
     // Negative scales result in flipped sprites / meshes,
@@ -280,32 +300,32 @@ fn setup(
     let offset_x = left_edge_of_bricks + BRICK_SIZE.x / 2.;
     let offset_y = bottom_edge_of_bricks + BRICK_SIZE.y / 2.;
 
-    for row in 0..n_rows {
-        for column in 0..n_columns {
-            let brick_position = Vec2::new(
-                offset_x + column as f32 * (BRICK_SIZE.x + GAP_BETWEEN_BRICKS),
-                offset_y + row as f32 * (BRICK_SIZE.y + GAP_BETWEEN_BRICKS),
-            );
+    // for row in 0..n_rows {
+    //     for column in 0..n_columns {
+    //         let brick_position = Vec2::new(
+    //             offset_x + column as f32 * (BRICK_SIZE.x + GAP_BETWEEN_BRICKS),
+    //             offset_y + row as f32 * (BRICK_SIZE.y + GAP_BETWEEN_BRICKS),
+    //         );
 
-            // brick
-            commands.spawn((
-                SpriteBundle {
-                    sprite: Sprite {
-                        color: BRICK_COLOR,
-                        ..default()
-                    },
-                    transform: Transform {
-                        translation: brick_position.extend(0.0),
-                        scale: Vec3::new(BRICK_SIZE.x, BRICK_SIZE.y, 1.0),
-                        ..default()
-                    },
-                    ..default()
-                },
-                Brick,
-                Collider,
-            ));
-        }
-    }
+    //         // brick
+    //         commands.spawn((
+    //             SpriteBundle {
+    //                 sprite: Sprite {
+    //                     color: BRICK_COLOR,
+    //                     ..default()
+    //                 },
+    //                 transform: Transform {
+    //                     translation: brick_position.extend(0.0),
+    //                     scale: Vec3::new(BRICK_SIZE.x, BRICK_SIZE.y, 1.0),
+    //                     ..default()
+    //                 },
+    //                 ..default()
+    //             },
+    //             Brick,
+    //             Collider,
+    //         ));
+    //     }
+    // }
 }
 
 fn move_paddle(
@@ -314,26 +334,43 @@ fn move_paddle(
     time_step: Res<FixedTime>,
 ) {
     let mut paddle_transform = query.single_mut();
-    let mut direction = 0.0;
+    let mut dir_x = 0.0;
+    let mut dir_y = -1.5;
 
-    if keyboard_input.pressed(KeyCode::Left) {
-        direction -= 1.0;
+    let upper_bound: f32 = 500.0;
+    let lower_bound: f32 = -300.0;
+
+    // hit floor stop falling
+    if paddle_transform.translation.y < (lower_bound + 2.0) {
+        dir_y = 0.0;
+        if keyboard_input.pressed(KeyCode::Space) {
+            dir_y = 40.0;
+        }
     }
 
-    if keyboard_input.pressed(KeyCode::Right) {
-        direction += 1.0;
+    if keyboard_input.pressed(KeyCode::Left) || keyboard_input.pressed(KeyCode::A) {
+        dir_x -= 2.0;
     }
+    if keyboard_input.pressed(KeyCode::Right) || keyboard_input.pressed(KeyCode::D) {
+        dir_x += 2.0;
+    }
+    // if keyboard_input.pressed(KeyCode::Down) {
+    //     dir_y -= 1.0;
+    // }
 
     // Calculate the new horizontal paddle position based on player input
-    let new_paddle_position =
-        paddle_transform.translation.x + direction * PADDLE_SPEED * time_step.period.as_secs_f32();
+    let new_x =
+        paddle_transform.translation.x + dir_x * PADDLE_SPEED * time_step.period.as_secs_f32();
+    let new_y =
+        paddle_transform.translation.y + dir_y * PADDLE_SPEED * time_step.period.as_secs_f32();
 
     // Update the paddle position,
     // making sure it doesn't cause the paddle to leave the arena
-    let left_bound = LEFT_WALL + WALL_THICKNESS / 2.0 + PADDLE_SIZE.x / 2.0 + PADDLE_PADDING;
-    let right_bound = RIGHT_WALL - WALL_THICKNESS / 2.0 - PADDLE_SIZE.x / 2.0 - PADDLE_PADDING;
+    let left_bound = -500.0;
+    let right_bound = 500.0;
 
-    paddle_transform.translation.x = new_paddle_position.clamp(left_bound, right_bound);
+    paddle_transform.translation.x = new_x.clamp(left_bound, right_bound);
+    paddle_transform.translation.y = new_y.clamp(lower_bound, upper_bound);
 }
 
 fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<FixedTime>) {
@@ -343,9 +380,11 @@ fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>, time_step: Res<
     }
 }
 
-fn update_scoreboard(scoreboard: Res<Scoreboard>, mut query: Query<&mut Text>) {
+fn update_scoreboard(_scoreboard: Res<Scoreboard>, mut query: Query<&mut Text>,  mut query_t: Query<&mut Transform, With<Paddle>>,  ) {
     let mut text = query.single_mut();
-    text.sections[1].value = scoreboard.score.to_string();
+    let pos = query_t.single_mut();
+    text.sections[1].value = pos.translation.x.to_string();
+    text.sections[2].value = pos.translation.y.to_string();
 }
 
 fn check_for_collisions(
